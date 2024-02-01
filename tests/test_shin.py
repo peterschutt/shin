@@ -88,3 +88,11 @@ def test_full_output_get_item_interface() -> None:
     assert full_output["z"] == 0.5
     with pytest.raises(KeyError):
         full_output["foo"]  # type: ignore[call-overload]
+
+
+def test_calculate_implied_odds() -> None:
+    odds = [2.6, 2.4, 4.3]
+    margin = sum([1 / o for o in odds]) - 1
+    implied_probabilities = shin.calculate_implied_probabilities(odds)
+    res = shin.calculate_implied_odds(implied_probabilities, margin=margin)
+    assert pytest.approx(res) == odds

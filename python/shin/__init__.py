@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import sqrt
-from typing import Any, Generic, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
 from .shin import optimise as _optimise_rust
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 T = TypeVar("T")
 OutputT = TypeVar("OutputT", bound="list[float] | dict[Any, float]")
@@ -186,3 +189,98 @@ def calculate_implied_probabilities(
             z=z,
         )
     return l
+
+
+# sequence input
+@overload
+def calculate_implied_odds(
+    probabilities: Sequence[float],
+    *,
+    margin: float = ...,
+) -> list[float]:
+    ...
+
+
+# mapping input
+@overload
+def calculate_implied_odds(
+    probabilities: Mapping[T, float],
+    *,
+    margin: float = ...,
+) -> dict[T, float]:
+    ...
+
+
+def calculate_implied_odds(
+    probabilities: Sequence[float] | Mapping[T, float], *, margin: float = 0.0
+) -> list[float] | Mapping[T, float]:
+    prob_seq = (
+        list(probabilities.values())
+        if isinstance(probabilities, Mapping)
+        else probabilities
+    )
+
+    if not margin:
+        z = 0.0
+    else:
+
+        def solver_func(z_in: float) -> float:
+            return sum(_inverse_odds_for_z(z_in, prob_seq)) - (1 + margin)
+
+        z = _solve_for_root(solver_func)
+
+    price_gen = (1 / p for p in _inverse_odds_for_z(z, prob_seq))
+    if isinstance(probabilities, Mapping):
+        return {k: p for k, p in zip(probabilities, price_gen)}
+    return list(price_gen)
+
+
+def _inverse_odds_for_z(z: float, prob_seq: Sequence[float]) -> list[float]:
+    """Calculate the inverse odds for a given z.
+
+    Args:
+        z: The value to solve for.
+        prob_seq: The probabilities should sum to 0.
+    """
+    y = [sqrt((z * p) + ((1 - z) * p**2)) for p in prob_seq]
+    sum_y = sum(y)
+    return [yy * sum_y for yy in y]
+
+
+def _solve_for_root(
+    func: Callable[[float], float],
+    a: float = 0,
+    b: float = 3,
+    tolerance: float = 1e-6,
+    max_iterations: int = 1000,
+) -> float:
+    """Solve for the root of a function using the bisection method.
+
+    Args:
+        func: The function to find the root of.
+        a: The lower bound of the interval to search for the root in.
+        b: The upper bound of the interval to search for the root in.
+        tolerance: The tolerance of the root approximation.
+        max_iterations: The maximum number of iterations to perform.
+
+    Returns:
+        The root approximation.
+
+    Raises:
+        ValueError: If the function does not change sign over the interval.
+    """
+    if func(a) * func(b) >= 0:
+        raise ValueError(
+            "Function does not change sign over the interval. Choose different a and b."
+        )
+
+    c = a
+    for _ in range(max_iterations):
+        c = (a + b) / 2
+        if func(c) == 0 or (b - a) / 2 < tolerance:
+            return c
+        if func(c) * func(a) < 0:
+            b = c
+        else:
+            a = c
+    return c  # Return the last midpoint as the root approximation

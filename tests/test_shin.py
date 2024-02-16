@@ -94,5 +94,5 @@ def test_calculate_implied_odds() -> None:
     odds = [2.6, 2.4, 4.3]
     margin = sum([1 / o for o in odds]) - 1
     implied_probabilities = shin.calculate_implied_probabilities(odds)
-    res = shin.calculate_implied_odds(implied_probabilities, margin=margin)
-    assert pytest.approx(res) == odds
+    res = shin.calculate_implied_odds(implied_probabilities, overround=margin)
+    assert pytest.approx(odds) == res

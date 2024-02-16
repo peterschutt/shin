@@ -35,7 +35,7 @@ def test_calculate_implied_probabilities_sequence_input() -> None:
     assert pytest.approx(0.2222265) == result[2]
 
 
-def test_calculate_implied_probabilties_mapping_input() -> None:
+def test_calculate_implied_probabilities_mapping_input() -> None:
     result = shin.calculate_implied_probabilities(
         {"HOME": 2.6, "AWAY": 2.4, "DRAW": 4.3}
     )

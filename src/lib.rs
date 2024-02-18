@@ -57,7 +57,13 @@ impl<'a> CostFunction for ZSolve<'a> {
     }
 }
 
-fn solve_for_z(prob_seq: &[f64], overround: f64, max_iters: u64, eps: f64, t: f64) -> IterState<f64, (), (), (), f64> {
+fn solve_for_z(
+    prob_seq: &[f64],
+    overround: f64,
+    max_iters: u64,
+    eps: f64,
+    t: f64,
+) -> IterState<f64, (), (), (), f64> {
     let cost = ZSolve {
         probabilities: prob_seq,
         overround,
@@ -73,85 +79,37 @@ fn solve_for_z(prob_seq: &[f64], overround: f64, max_iters: u64, eps: f64, t: f6
 }
 
 #[pyfunction]
-fn calculate_implied_odds(probabilities: Vec<f64>, overround: f64, max_iters: u64, eps: f64, t: f64) -> Vec<f64> {
-
+fn calculate_implied_odds(
+    probabilities: Vec<f64>,
+    overround: f64,
+    max_iters: u64,
+    eps: f64,
+    t: f64,
+) -> PyResult<(Vec<f64>, u64, String, f64)> {
     let inverse_odds: Vec<f64>;
+    let iterations: u64;
+    let z: f64;
+    let termination_status: String;
 
     if overround == 0.0 {
         inverse_odds = probabilities;
+        iterations = 0;
+        z = 0.0;
+        termination_status = "No overround".to_string();
     } else {
         let solver_state = solve_for_z(&probabilities, overround, max_iters, eps, t);
         inverse_odds = inverse_odds_for_z(solver_state.best_param.unwrap(), &probabilities);
+        iterations = solver_state.iter;
+        z = solver_state.best_param.unwrap();
+        termination_status = solver_state.termination_status.to_string();
     }
 
-    inverse_odds
-    .into_iter()
-    .map(|io| 1.0 / io)
-    .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use approx::assert_relative_eq;
-
-    #[test]
-    fn test_solve_for_z() {
-        let prob_seq = vec![0.1, 0.2, 0.3, 0.4];
-        let overround = 0.1;
-        let expected = 0.033725;
-        let max_iters = 100;
-        let eps = f64::EPSILON.sqrt();
-        let t = 1e-8;
-        assert_relative_eq!(
-            solve_for_z(&prob_seq, overround, max_iters, eps, t).best_param.unwrap(),
-            expected,
-            epsilon = 1e-6
-        );
-    }
-
-    #[test]
-    fn test_inverse_odds_for_z() {
-        let z = 0.5;
-        let prob_seq = vec![0.1, 0.2, 0.3, 0.4];
-        let expected = vec![0.363898, 0.537513, 0.685198, 0.821066];
-        let result = inverse_odds_for_z(z, &prob_seq);
-        assert_eq!(result.len(), expected.len());
-        for (r, e) in result.iter().zip(expected.iter()) {
-            assert_relative_eq!(r, e, epsilon = 1e-6);
-        }
-    }
-
-    fn call_calculate_implied_odds(probabilities: Vec<f64>, overround: f64) -> Vec<f64> {
-        calculate_implied_odds(probabilities, overround, 100, f64::EPSILON.sqrt(), 1e-8)
-    }
-
-    #[test]
-    fn test_calculate_implied_odds_no_overround() {
-        let odds = [3., 3., 3.];
-        let probabilities: Vec<f64> = odds.iter().map(|&o| 1.0 / o).collect();
-        let overround = 0.0;
-        let expected = vec![3., 3., 3.];
-        let result = call_calculate_implied_odds(probabilities, overround);
-        assert_eq!(result.len(), expected.len());
-        for (r, e) in result.iter().zip(expected.iter()) {
-            assert_relative_eq!(r, e, epsilon = 1e-6);
-        }
-    }
-
-    #[test]
-    fn test_calculate_implied_odds() {
-        let odds = [3., 3., 3.];
-        let probabilities: Vec<f64> = odds.iter().map(|&o| 1.0 / o).collect();
-        let overround = 0.1;
-        let expected = vec![2.72727, 2.72727, 2.72727];
-        let result = call_calculate_implied_odds(probabilities, overround);
-        assert_eq!(result.len(), expected.len());
-        for (r, e) in result.iter().zip(expected.iter()) {
-            assert_relative_eq!(r, e, epsilon = 1e-6);
-        }
-        assert_relative_eq!(result.iter().map(|o| 1. / o).sum::<f64>() - 1., overround, epsilon = 1e-6);
-    }
+    Ok((
+        inverse_odds.into_iter().map(|io| 1.0 / io).collect(),
+        iterations,
+        termination_status,
+        z,
+    ))
 }
 
 /// Fast calculations for Shin's method

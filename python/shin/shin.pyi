@@ -8,5 +8,9 @@ def optimise(
     convergence_threshold: float = ...,
 ) -> tuple[float, float, float]: ...
 def calculate_implied_odds(
-    probabilities: Sequence[float], overround: float, max_iters: int, eps: float, t: float
-) -> list[float]: ...
+    probabilities: Sequence[float],
+    overround: float,
+    max_iters: int,
+    eps: float,
+    t: float,
+) -> tuple[list[float], int, str, float]: ...

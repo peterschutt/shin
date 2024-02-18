@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from math import sqrt
@@ -194,12 +195,40 @@ def calculate_implied_probabilities(
     return l
 
 
+@dataclass
+class ShinSolverDetails(Generic[OutputT]):
+    implied_odds: OutputT
+    iterations: int
+    termination_status: str
+    z: float
+
+
 # sequence input
 @overload
 def calculate_implied_odds(
     probabilities: Sequence[float],
     overround: float,
+    *,
+    max_iters: int = ...,
+    rel_tol: float = ...,
+    abs_tol: float = ...,
+    full_output: Literal[False] = False,
+    on_max_iters: Literal["raise", "warn", "ignore"] = ...,
 ) -> list[float]:
+    ...
+
+
+@overload
+def calculate_implied_odds(
+    probabilities: Sequence[float],
+    overround: float,
+    *,
+    max_iters: int = ...,
+    rel_tol: float = ...,
+    abs_tol: float = ...,
+    full_output: Literal[True],
+    on_max_iters: Literal["raise", "warn", "ignore"] = ...,
+) -> ShinSolverDetails[list[float]]:
     ...
 
 
@@ -208,7 +237,27 @@ def calculate_implied_odds(
 def calculate_implied_odds(
     probabilities: Mapping[T, float],
     overround: float,
+    *,
+    max_iters: int = ...,
+    rel_tol: float = ...,
+    abs_tol: float = ...,
+    full_output: Literal[False] = False,
+    on_max_iters: Literal["raise", "warn", "ignore"] = ...,
 ) -> dict[T, float]:
+    ...
+
+
+@overload
+def calculate_implied_odds(
+    probabilities: Mapping[T, float],
+    overround: float,
+    *,
+    max_iters: int = ...,
+    rel_tol: float = ...,
+    abs_tol: float = ...,
+    full_output: Literal[True],
+    on_max_iters: Literal["raise", "warn", "ignore"] = ...,
+) -> ShinSolverDetails[dict[T, float]]:
     ...
 
 
@@ -217,9 +266,16 @@ def calculate_implied_odds(
     overround: float,
     *,
     max_iters: int = 100,
-    rel_tol: float = EPSILON ** 0.5,
+    rel_tol: float = EPSILON**0.5,
     abs_tol: float = 1e-8,
-) -> list[float] | Mapping[T, float]:
+    full_output: bool = False,
+    on_max_iters: Literal["raise", "warn", "ignore"] = "raise",
+) -> (
+    list[float]
+    | ShinSolverDetails[list[float]]
+    | Mapping[T, float]
+    | ShinSolverDetails[dict[T, float]]
+):
     if len(probabilities) < 2:
         raise ValueError("len(probabilities) must be >= 2")
 
@@ -235,8 +291,33 @@ def calculate_implied_odds(
         else probabilities
     )
 
-    odds = _calculate_implied_odds(prob_seq, overround, max_iters, rel_tol, abs_tol)
+    odds, iterations, termination_status, z = _calculate_implied_odds(
+        prob_seq, overround, max_iters, rel_tol, abs_tol
+    )
+
+    if max_iters <= iterations:
+        msg = f"Solver did not converge after {max_iters} iterations"
+        if on_max_iters == "raise":
+            raise RuntimeError(msg)
+        if on_max_iters == "warn":
+            warnings.warn(msg, RuntimeWarning)
 
     if isinstance(probabilities, Mapping):
-        return {k: p for k, p in zip(probabilities, odds)}
+        d = {k: p for k, p in zip(probabilities, odds)}
+        if full_output:
+            return ShinSolverDetails(
+                implied_odds=d,
+                iterations=iterations,
+                termination_status=termination_status,
+                z=z,
+            )
+        return d
+
+    if full_output:
+        return ShinSolverDetails(
+            implied_odds=odds,
+            iterations=iterations,
+            termination_status=termination_status,
+            z=z,
+        )
     return odds

@@ -98,6 +98,31 @@ def test_calculate_implied_odds() -> None:
     assert pytest.approx(odds) == res
 
 
+def test_calculate_implied_odds_mapping_input() -> None:
+    odds = {"HOME": 2.6, "AWAY": 2.4, "DRAW": 4.3}
+    overround = sum([1 / o for o in odds.values()]) - 1
+    implied_probabilities = shin.calculate_implied_probabilities(odds)
+    res = shin.calculate_implied_odds(implied_probabilities, overround)
+    assert {
+        "HOME": pytest.approx(2.6),
+        "AWAY": pytest.approx(2.4),
+        "DRAW": pytest.approx(4.3),
+    } == res
+
+
+def test_calculate_implied_odds_full_output() -> None:
+    odds = [2.6, 2.4, 4.3]
+    overround = sum([1.0 / o for o in odds]) - 1.0
+    optimization_result = shin.calculate_implied_probabilities(odds, full_output=True)
+    res = shin.calculate_implied_odds(
+        optimization_result.implied_probabilities, overround, full_output=True
+    )
+    assert pytest.approx(odds) == res.implied_odds
+    assert res.iterations == 25
+    assert res.termination_status == "Solver converged"
+    assert pytest.approx(0.01694251) == optimization_result.z
+
+
 def test_calculate_implied_odds_overround_lt_zero() -> None:
     with pytest.raises(ValueError):
         shin.calculate_implied_odds([0.3, 0.4, 0.3], overround=-0.1)
@@ -112,3 +137,23 @@ def test_calculate_implied_odds_no_overround() -> None:
     probs = [0.3, 0.4, 0.3]
     res = shin.calculate_implied_odds(probs, 0)
     assert pytest.approx([1 / p for p in probs]) == res
+
+
+def test_calculate_implied_odds_no_convergence_raises() -> None:
+    with pytest.raises(RuntimeError):
+        shin.calculate_implied_odds([0.3, 0.4, 0.3], 0.1, max_iters=1)
+
+
+def test_calculate_implied_odds_no_convergence_warns() -> None:
+    with pytest.warns(RuntimeWarning):
+        shin.calculate_implied_odds(
+            [0.3, 0.4, 0.3], 0.1, max_iters=1, on_max_iters="warn"
+        )
+
+
+def test_calculate_implied_odds_no_convergence_ignores() -> None:
+    res = shin.calculate_implied_odds(
+        [0.3, 0.4, 0.3], 0.1, max_iters=1, on_max_iters="ignore", full_output=True
+    )
+    assert res.termination_status == "Maximum number of iterations reached"
+    assert res.iterations == 1

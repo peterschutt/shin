@@ -3,8 +3,10 @@
     from shin import shin
     
     reveal_type(shin.optimise)
+    reveal_type(shin.calculate_implied_odds)
   out: |
     main:3: note: Revealed type is "def (inverse_odds: builtins.list[builtins.float], sum_inverse_odds: builtins.float, n: builtins.int, max_iterations: builtins.int =, convergence_threshold: builtins.float =) -> tuple[builtins.float, builtins.float, builtins.float]"
+    main:4: note: Revealed type is "def (probabilities: typing.Sequence[builtins.float], overround: builtins.float, max_iters: builtins.int, eps: builtins.float, t: builtins.float) -> tuple[builtins.list[builtins.float], builtins.int, builtins.str, builtins.float]"
 
 - case: test_sequence_input_overload
   main: |
@@ -66,3 +68,41 @@
       main:8: note:     def __getitem__(self, Literal['delta'], /) -> float
       main:8: note:     def __getitem__(self, Literal['z'], /) -> float
       main:8: note: Revealed type is "Any"
+
+- case: test_calculate_implied_odds_sequence_input_overload
+  main: |
+      import shin
+      
+      reveal_type(shin.calculate_implied_odds([0.5, 0.5], 0.05))
+  out: |
+      main:3: note: Revealed type is "builtins.list[builtins.float]"
+
+- case: test_calculate_implied_odds_mapping_input_overload
+  main: |
+      import shin
+        
+      reveal_type(shin.calculate_implied_odds({1: 0.5, 2: 0.5}, 0.05))
+  out: |
+      main:3: note: Revealed type is "builtins.dict[builtins.int, builtins.float]"
+
+- case: test_calculate_implied_odds_sequence_input_full_output_overload
+  main: |
+      import shin
+      
+      out = shin.calculate_implied_odds([0.5, 0.5], 0.05, full_output=True)
+      reveal_type(out)
+      reveal_type(out.implied_odds)
+  out: |
+      main:4: note: Revealed type is "shin.ShinSolverDetails[builtins.list[builtins.float]]"
+      main:5: note: Revealed type is "builtins.list[builtins.float]"
+
+- case: test_calculate_implied_odds_mapping_input_full_output_overload
+  main: |
+      import shin
+      
+      out = shin.calculate_implied_odds({1: 0.5, 2: 0.5}, 0.05, full_output=True)
+      reveal_type(out)
+      reveal_type(out.implied_odds)
+  out: |
+      main:4: note: Revealed type is "shin.ShinSolverDetails[builtins.dict[builtins.int, builtins.float]]"
+      main:5: note: Revealed type is "builtins.dict[builtins.int, builtins.float]"

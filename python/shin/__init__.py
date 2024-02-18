@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from math import sqrt
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 OutputT = TypeVar("OutputT", bound="list[float] | dict[Any, float]")
+EPSILON = sys.float_info.epsilon
 
 
 def _optimise(
@@ -196,8 +198,7 @@ def calculate_implied_probabilities(
 @overload
 def calculate_implied_odds(
     probabilities: Sequence[float],
-    *,
-    overround: float = ...,
+    overround: float,
 ) -> list[float]:
     ...
 
@@ -206,22 +207,35 @@ def calculate_implied_odds(
 @overload
 def calculate_implied_odds(
     probabilities: Mapping[T, float],
-    *,
-    overround: float = ...,
+    overround: float,
 ) -> dict[T, float]:
     ...
 
 
 def calculate_implied_odds(
-    probabilities: Sequence[float] | Mapping[T, float], *, overround: float = 0.0
+    probabilities: Sequence[float] | Mapping[T, float],
+    overround: float,
+    *,
+    max_iters: int = 100,
+    rel_tol: float = EPSILON ** 0.5,
+    abs_tol: float = 1e-8,
 ) -> list[float] | Mapping[T, float]:
+    if len(probabilities) < 2:
+        raise ValueError("len(probabilities) must be >= 2")
+
+    if overround < 0:
+        raise ValueError("overround must be >= 0")
+
+    if overround > 1:
+        raise ValueError("overround must be <= 1")
+
     prob_seq = (
         list(probabilities.values())
         if isinstance(probabilities, Mapping)
         else probabilities
     )
 
-    odds = _calculate_implied_odds(prob_seq, overround)
+    odds = _calculate_implied_odds(prob_seq, overround, max_iters, rel_tol, abs_tol)
 
     if isinstance(probabilities, Mapping):
         return {k: p for k, p in zip(probabilities, odds)}

@@ -1,8 +1,5 @@
 use argmin::{
-    core::{
-        observers::{ObserverMode, SlogLogger},
-        CostFunction, Error, Executor,
-    },
+    core::{CostFunction, Error, Executor, IterState},
     solver::brent::BrentOpt,
 };
 use pyo3::prelude::*;
@@ -60,41 +57,37 @@ impl<'a> CostFunction for ZSolve<'a> {
     }
 }
 
-fn solve_for_z(prob_seq: &[f64], overround: f64) -> f64 {
-    if overround < 0.0 {
-        panic!("Overround must be non-negative");
-    }
-
-    if overround > 1.0 {
-        panic!("Overround must be less than 1.0");
-    }
-
-    if overround == 0.0 {
-        return 0.0;
-    }
-
+fn solve_for_z(prob_seq: &[f64], overround: f64, max_iters: u64, eps: f64, t: f64) -> IterState<f64, (), (), (), f64> {
     let cost = ZSolve {
         probabilities: prob_seq,
         overround,
     };
-    let solver = BrentOpt::new(0., 1.).set_tolerance(f64::EPSILON.sqrt(), 1e-7);
+    let solver = BrentOpt::new(0., 1.).set_tolerance(eps, t);
 
     let res = Executor::new(cost, solver)
-        .configure(|state| state.max_iters(100).target_cost(0.0))
-        .add_observer(SlogLogger::term(), ObserverMode::Always)
+        .configure(|state| state.max_iters(max_iters).target_cost(0.0))
         .run()
         .unwrap();
 
-    res.state.best_param.unwrap()
+    res.state
 }
 
 #[pyfunction]
-fn calculate_implied_odds(probabilities: Vec<f64>, overround: f64) -> Vec<f64> {
-    let z = solve_for_z(&probabilities, overround);
-    inverse_odds_for_z(z, &probabilities)
-        .into_iter()
-        .map(|io| 1.0 / io)
-        .collect()
+fn calculate_implied_odds(probabilities: Vec<f64>, overround: f64, max_iters: u64, eps: f64, t: f64) -> Vec<f64> {
+
+    let inverse_odds: Vec<f64>;
+
+    if overround == 0.0 {
+        inverse_odds = probabilities;
+    } else {
+        let solver_state = solve_for_z(&probabilities, overround, max_iters, eps, t);
+        inverse_odds = inverse_odds_for_z(solver_state.best_param.unwrap(), &probabilities);
+    }
+
+    inverse_odds
+    .into_iter()
+    .map(|io| 1.0 / io)
+    .collect()
 }
 
 #[cfg(test)]
@@ -107,7 +100,14 @@ mod tests {
         let prob_seq = vec![0.1, 0.2, 0.3, 0.4];
         let overround = 0.1;
         let expected = 0.033725;
-        assert_relative_eq!(solve_for_z(&prob_seq, overround), expected, epsilon = 1e-6);
+        let max_iters = 100;
+        let eps = f64::EPSILON.sqrt();
+        let t = 1e-8;
+        assert_relative_eq!(
+            solve_for_z(&prob_seq, overround, max_iters, eps, t).best_param.unwrap(),
+            expected,
+            epsilon = 1e-6
+        );
     }
 
     #[test]
@@ -120,6 +120,37 @@ mod tests {
         for (r, e) in result.iter().zip(expected.iter()) {
             assert_relative_eq!(r, e, epsilon = 1e-6);
         }
+    }
+
+    fn call_calculate_implied_odds(probabilities: Vec<f64>, overround: f64) -> Vec<f64> {
+        calculate_implied_odds(probabilities, overround, 100, f64::EPSILON.sqrt(), 1e-8)
+    }
+
+    #[test]
+    fn test_calculate_implied_odds_no_overround() {
+        let odds = [3., 3., 3.];
+        let probabilities: Vec<f64> = odds.iter().map(|&o| 1.0 / o).collect();
+        let overround = 0.0;
+        let expected = vec![3., 3., 3.];
+        let result = call_calculate_implied_odds(probabilities, overround);
+        assert_eq!(result.len(), expected.len());
+        for (r, e) in result.iter().zip(expected.iter()) {
+            assert_relative_eq!(r, e, epsilon = 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_calculate_implied_odds() {
+        let odds = [3., 3., 3.];
+        let probabilities: Vec<f64> = odds.iter().map(|&o| 1.0 / o).collect();
+        let overround = 0.1;
+        let expected = vec![2.72727, 2.72727, 2.72727];
+        let result = call_calculate_implied_odds(probabilities, overround);
+        assert_eq!(result.len(), expected.len());
+        for (r, e) in result.iter().zip(expected.iter()) {
+            assert_relative_eq!(r, e, epsilon = 1e-6);
+        }
+        assert_relative_eq!(result.iter().map(|o| 1. / o).sum::<f64>() - 1., overround, epsilon = 1e-6);
     }
 }
 

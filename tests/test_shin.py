@@ -92,7 +92,23 @@ def test_full_output_get_item_interface() -> None:
 
 def test_calculate_implied_odds() -> None:
     odds = [2.6, 2.4, 4.3]
-    margin = sum([1 / o for o in odds]) - 1
+    overround = sum([1 / o for o in odds]) - 1
     implied_probabilities = shin.calculate_implied_probabilities(odds)
-    res = shin.calculate_implied_odds(implied_probabilities, overround=margin)
+    res = shin.calculate_implied_odds(implied_probabilities, overround)
     assert pytest.approx(odds) == res
+
+
+def test_calculate_implied_odds_overround_lt_zero() -> None:
+    with pytest.raises(ValueError):
+        shin.calculate_implied_odds([0.3, 0.4, 0.3], overround=-0.1)
+
+
+def test_calculate_implied_odds_overround_gt_one() -> None:
+    with pytest.raises(ValueError):
+        shin.calculate_implied_odds([0.3, 0.4, 0.3], overround=1.1)
+
+
+def test_calculate_implied_odds_no_overround() -> None:
+    probs = [0.3, 0.4, 0.3]
+    res = shin.calculate_implied_odds(probs, 0)
+    assert pytest.approx([1 / p for p in probs]) == res

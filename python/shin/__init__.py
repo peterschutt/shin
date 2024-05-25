@@ -206,8 +206,7 @@ def calculate_implied_odds(
     abs_tol: float = ...,
     full_output: Literal[False] = False,
     on_max_iters: Literal["raise", "warn", "ignore"] = ...,
-) -> list[float]:
-    ...
+) -> list[float]: ...
 
 
 @overload
@@ -220,8 +219,7 @@ def calculate_implied_odds(
     abs_tol: float = ...,
     full_output: Literal[True],
     on_max_iters: Literal["raise", "warn", "ignore"] = ...,
-) -> ShinSolverDetails[list[float]]:
-    ...
+) -> ShinSolverDetails[list[float]]: ...
 
 
 # mapping input
@@ -235,8 +233,7 @@ def calculate_implied_odds(
     abs_tol: float = ...,
     full_output: Literal[False] = False,
     on_max_iters: Literal["raise", "warn", "ignore"] = ...,
-) -> dict[T, float]:
-    ...
+) -> dict[T, float]: ...
 
 
 @overload
@@ -249,8 +246,7 @@ def calculate_implied_odds(
     abs_tol: float = ...,
     full_output: Literal[True],
     on_max_iters: Literal["raise", "warn", "ignore"] = ...,
-) -> ShinSolverDetails[dict[T, float]]:
-    ...
+) -> ShinSolverDetails[dict[T, float]]: ...
 
 
 def calculate_implied_odds(
